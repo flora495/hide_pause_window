@@ -9,6 +9,21 @@
 - キーボードとコントローラーは判定がデバイス依存（ボタン番号の意味が異なる）のため、`Settings.KeyboardToggleKeys`/`Settings.PadToggleKeys`の2つに分けて保持する。デバイスの判別は`IPad.GetSaveIdentifier()`（キーボードは`"pc_keyboard_jump_king"`固定）で行い、`ControllerManager.GetMain()`（直近で入力があったデバイス）を介して両方を同じロジックで扱う
 - 押下検出は`ControllerManager.instance.GetMain().GetPad().GetPressedButtons()`を直接読む方式（`Phoenixx19.SaveStates`の`CustomBindButton`/`CustomPadInstance`と同じ考え方）。ゲーム本体の`SelectDevice`/`BBKEY_PAD`によるデバイス選択UIは使っていない（トグル用の1ボタンだけなので不要と判断し、簡略化した）
 
+## 不具合修正: 「Hide Window Key」選択時に画面が固まる（実機テストで発覚・修正済み）
+
+実機テストで、ポーズメニューから「Hide Window Key」をConfirmすると、ポップアップが一切表示されず、上下キー・キャンセル・Escも反応しない「フリーズ」状態になる不具合が報告された。
+
+**原因**: `HideWindowKeyMenu.Create`で、外側の`TextButton`の子ノードに`captureFlow`（`WaitUntilNoRawInputNode`→`CaptureToggleKeyNode`の`BTsequencor`）を直接渡しており、それをラップしているはずの`frame`（`BindButtonFrame`、「Press a key...」の表示と10秒タイムアウトを持つ）が一度も`Run()`されない構造になっていた。
+
+これにより:
+- `BindButtonFrame.Draw()`は`base.last_result == BTresult.Running`の時しか描画しないが、`frame`自体がTickされないため`last_result`が更新されず、**ポップアップが永久に表示されない**
+- `JumpKing.PauseMenu.BT.MenuSelector.MyRun()`は、現在選択中の項目が`Running`を返している間は上下/キャンセル/pauseの入力処理を一切行わない（`bool flag = m_last_child_result != BTresult.Running; if (flag) { ...入力処理... }`）。`captureFlow`自体は正常にRunning中だったため、メニュー全体が「見えないまま入力を受け付けない」状態に陥った
+- `BindButtonFrame`が内蔵する10秒の自動キャンセルタイマー(`MyRun`内の`m_timer.Update(...)`)も、`frame`自体がTickされないため動作せず、唯一の自動回復手段も機能しなかった
+
+**修正**: 外側`TextButton`の子ノードを`captureFlow`ではなく`frame`（`BindButtonFrame`自身）に変更した。`BindButtonFrame.MyRun()`が内部で`m_main_node.Run(p_data)`（＝`captureFlow.Run(...)`）を呼ぶため、キャプチャの動作自体は変わらず、`frame`自身が正しくTickされることで描画・10秒タイムアウトの両方が機能するようになった。
+
+**既知の限度（軽微、対応不要と判断）**: トグルキーをゲーム本体の「pause」キー（デフォルトEsc）と同じボタンに登録した場合、非表示→再表示の際の押下が`ConsumePadPresses()`で握りつぶされず素通りし、再表示と同時にポーズ自体も解除される。トグル専用に別のキーを選べば発生しない、利用者が意図的に重複させた場合のみの軽微な仕様上の癖。
+
 ## 【重要・厳守】実装時の制約（他modから引き継ぎ）
 
 このmodもSteam Workshop上での公開を想定する。**Jump King本体のプログラムやファイル（`C:\Program Files (x86)\Steam\steamapps\common\Jump King\`配下など）は一切変更・上書き・削除してはならない。** 実装は必ず`hide_pause_window/`フォルダの下だけで行うこと（ビルド参照のための読み取り専用パス指定を除く）。本体への変更が必要に見える場合は、Harmonyによる実行時パッチなど、本体ファイルを書き換えない手段で実現する（[keep_babe_skin](../keep_babe_skin/NOTES.md)・[confirm_count_control](../confirm_count_control/MenuFactoryPatches.cs)・[area_info_display_on_pause](../area_info_display_on_pause/NOTES.md)と同じ方針）。

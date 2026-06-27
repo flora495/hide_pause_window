@@ -47,7 +47,12 @@ namespace HidePauseWindow
             frame.Initialize();
             s_addDrawableMethod.Invoke(factory, new object[] { frame });
 
-            TextButton button = new TextButton(BuildLabel(), captureFlow);
+            // 子ノードはframe(BindButtonFrame)自身にする。captureFlowを直接渡すと、
+            // frameそのものがTickされないため「Press a key...」のポップアップが描画されず、
+            // frame内蔵の10秒自動キャンセルタイマーも動かなくなる
+            // (MenuSelectorは選択中の項目がRunningの間、上下/キャンセル/Escすら受け付けないため、
+            // 画面に何も出ないまま操作不能になっていた)。
+            TextButton button = new TextButton(BuildLabel(), frame);
             captureNode.DisplayButton = button;
             return button;
         }
