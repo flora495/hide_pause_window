@@ -36,9 +36,11 @@
    - 修正: `PauseManagerPatches`に`SuppressCurrentToggleEdge()`を追加し、`CaptureToggleKeyNode`が保存した直後に呼び出すことで`s_lastPressed`を強制的に`true`にする。これにより、登録に使ったキーが実際に一度離されるまでは「新規の押下」として扱われなくなり、登録直後の誤発火が起きなくなった。
 
 3. **要望: 設定キーに関わらずESCキーは「非表示→表示」のみを行う（逆方向は不要）**
-   - `PauseUpdatePrefix`に、`wasHidden`(このフレーム開始時に非表示だったか)を見て、非表示中に物理的なESCキー(`Microsoft.Xna.Framework.Input.Keyboard.GetState().IsKeyDown(Keys.Escape)`、ゲーム本体の「pause」バインド設定とは無関係に常にこの物理キーを直接見る)が押されていれば`s_hidden`を強制的に`false`にする処理を追加した。
+   - 当初、`PauseUpdatePrefix`に「非表示中は物理的なESCキー(`Keyboard.GetState().IsKeyDown(Keys.Escape)`)が押されていれば`s_hidden`を強制的に`false`にする」処理を追加した。
    - 表示中にESCを押しても何もしない（要望通り、逆方向は実装していない）。
-   - 同フレームでこの処理によって非表示→表示に変わった場合も、`ConsumePadPresses()`は引き続き呼ぶ（`wasHidden || s_hidden`で判定）。これにより、ウィンドウを再表示させたその同じESC押下が、`MenuSelector.MyRun`側の「pause」入力として読まれてポーズ自体まで解除されてしまうことを防いでいる（要望は「表示が戻る」だけで、ポーズ解除は意図していないため）。
+   - **その後、「ESCに限らず非表示中は任意のキー/ボタンで表示に戻るようにしてほしい」と仕様変更があったため、ESC固有のチェックを`IsAnyInputPressed()`（キーボードの`GetPressedKeys()`、および`ControllerManager.GetConnectedPads()`で取得できる接続中の全パッドの`GetPressedButtons()`のいずれかが1つでも押されていればtrue）に置き換えた。** ESCだけの特別扱いは無くなり、トグルキー自身を含むあらゆる入力で非表示→表示に戻る。
+   - `ConsumePadPresses()`は`wasHidden || s_hidden`の判定のまま変更していない。これにより、ウィンドウを再表示させたその押下が、`MenuSelector.MyRun`側の上下/確認/キャンセル/pause入力として読まれて意図せずメニューが動いたりポーズ自体が解除されたりすることを防いでいる（要望は「表示が戻る」だけで、それ以外の副作用は意図していないため）。
+   - 表示中→非表示への遷移（トグルキーの新規押下判定）と、非表示中→表示への遷移（任意の入力判定）を`if`/`else if`で排他的に処理しているため、同一フレーム内で両方が同時に評価されて二重トグルすることはない。
 
 ## 【重要・厳守】実装時の制約（他modから引き継ぎ）
 

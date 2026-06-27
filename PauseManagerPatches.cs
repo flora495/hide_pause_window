@@ -68,21 +68,24 @@ namespace HidePauseWindow
             }
 
             bool wasHidden = s_hidden;
+            bool togglePressed = IsToggleKeyPressed();
 
-            // 設定キーに関わらず、ESCキーは「非表示→表示」だけを強制する(表示中に押しても何もしない)。
-            // ConsumePadPressesは後段でwasHiddenを見て今フレームも握りつぶすため、このESC押下が
-            // そのままMenuSelector側の「pause」入力として読まれてポーズ自体が解除されることはない。
-            if (wasHidden && Keyboard.GetState().IsKeyDown(Keys.Escape))
+            if (wasHidden)
             {
-                s_hidden = false;
+                // 非表示中は、設定したトグルキーに関わらず、何かキー/ボタンが押されたら表示に戻す
+                // (キーボード・コントローラーいずれの入力でもよい)。表示中はこのチェックは行わない
+                // (表示中に何かを押しただけで非表示になっては困るため)。
+                if (IsAnyInputPressed())
+                {
+                    s_hidden = false;
+                }
             }
-
-            bool pressed = IsToggleKeyPressed();
-            if (pressed && !s_lastPressed)
+            else if (togglePressed && !s_lastPressed)
             {
-                s_hidden = !s_hidden;
+                // 表示中は、設定したトグルキーの新規押下だけで非表示にする。
+                s_hidden = true;
             }
-            s_lastPressed = pressed;
+            s_lastPressed = togglePressed;
 
             if (wasHidden || s_hidden)
             {
@@ -109,6 +112,28 @@ namespace HidePauseWindow
         private static bool DrawPrefix()
         {
             return !s_hidden;
+        }
+
+        /// <summary>
+        /// 接続されている全デバイス(キーボード+各コントローラー)のいずれかで、
+        /// 何かボタンが押されているかどうか。非表示中の「任意のキーで再表示」用の判定。
+        /// <see cref="IsToggleKeyPressed"/>と違い、特定の1台(直近入力があったデバイス)だけでなく
+        /// 全デバイスを見る(再表示はトグルキーを設定していないデバイスからでも行えてよいため)。
+        /// </summary>
+        private static bool IsAnyInputPressed()
+        {
+            if (Keyboard.GetState().GetPressedKeys().Length > 0)
+            {
+                return true;
+            }
+            foreach (PadInstance pad in ControllerManager.instance.GetConnectedPads())
+            {
+                if (pad.GetPad().GetPressedButtons().Length > 0)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static bool IsToggleKeyPressed()
