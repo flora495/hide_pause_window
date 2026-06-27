@@ -2,7 +2,12 @@
 
 逆コンパイル（ilspycmd、実機インストール済みの`JumpKing.exe`、および参考modとして指定されたWorkshopアイテム`3161216998`(`Phoenixx19.SaveStates`)の`JumpKingSaveStates.dll`）による調査の経緯と、確定した仕様をまとめたもの。
 
-**実装状況**: 本ドキュメント作成時点では未実装（仕様確定・実現可能性調査のみ完了）。
+**実装状況**: 実装・ビルド確認済み（リポジトリルートの各`.cs`ファイル）。実機での動作確認はまだ行っていない。
+
+**実装後の補足**:
+- 「キー登録UI」は、調査時点で想定していたゲーム本体内蔵の`BindCatchSave`/`SetBBKeyNode`/`TimerAction`による「変更を保持しますか？5秒で元に戻ります」の確認フローは実装せず、押された瞬間に即時保存する方式に簡略化した。movement/jump等のゲーム進行に必須なキーと違い、このmodのトグルキーを誤って思わぬ値に設定してしまっても、いつでもこの同じ画面を開いて上書きできるだけで実害が無いため
+- キーボードとコントローラーは判定がデバイス依存（ボタン番号の意味が異なる）のため、`Settings.KeyboardToggleKeys`/`Settings.PadToggleKeys`の2つに分けて保持する。デバイスの判別は`IPad.GetSaveIdentifier()`（キーボードは`"pc_keyboard_jump_king"`固定）で行い、`ControllerManager.GetMain()`（直近で入力があったデバイス）を介して両方を同じロジックで扱う
+- 押下検出は`ControllerManager.instance.GetMain().GetPad().GetPressedButtons()`を直接読む方式（`Phoenixx19.SaveStates`の`CustomBindButton`/`CustomPadInstance`と同じ考え方）。ゲーム本体の`SelectDevice`/`BBKEY_PAD`によるデバイス選択UIは使っていない（トグル用の1ボタンだけなので不要と判断し、簡略化した）
 
 ## 【重要・厳守】実装時の制約（他modから引き継ぎ）
 
