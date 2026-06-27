@@ -17,6 +17,7 @@ namespace HidePauseWindow
         private static bool s_isPaused;
         private static bool s_hidden;
         private static bool s_lastPressed;
+        private static bool s_armedToShow;
 
         public static void Apply(Harmony harmony)
         {
@@ -43,6 +44,7 @@ namespace HidePauseWindow
             {
                 s_hidden = false;
                 s_lastPressed = false;
+                s_armedToShow = false;
             }
         }
 
@@ -59,6 +61,7 @@ namespace HidePauseWindow
             {
                 s_hidden = false;
                 s_lastPressed = false;
+                s_armedToShow = false;
                 return;
             }
             if (!s_isPaused)
@@ -72,18 +75,30 @@ namespace HidePauseWindow
 
             if (wasHidden)
             {
-                // 非表示中は、設定したトグルキーに関わらず、何かキー/ボタンが押されたら表示に戻す
-                // (キーボード・コントローラーいずれの入力でもよい)。表示中はこのチェックは行わない
-                // (表示中に何かを押しただけで非表示になっては困るため)。
-                if (IsAnyInputPressed())
+                // 非表示にした直後は、それを非表示にしたトグルキーがまだ物理的に押されたままの
+                // フレームが何度か続く。その間は「任意のキー/ボタンが押されている」とみなして
+                // 即座に再表示してしまうと、トグルキーを押した直後にすぐ表示に戻ってしまう
+                // (実機テストで発覚した不具合)。一度すべてのキー/ボタンが離されてから
+                // (s_armedToShowがtrueになってから)初めて、次の押下を「再表示」のトリガーとして
+                // 受け付ける。
+                if (!s_armedToShow)
+                {
+                    if (!IsAnyInputPressed())
+                    {
+                        s_armedToShow = true;
+                    }
+                }
+                else if (IsAnyInputPressed())
                 {
                     s_hidden = false;
+                    s_armedToShow = false;
                 }
             }
             else if (togglePressed && !s_lastPressed)
             {
                 // 表示中は、設定したトグルキーの新規押下だけで非表示にする。
                 s_hidden = true;
+                s_armedToShow = false;
             }
             s_lastPressed = togglePressed;
 
