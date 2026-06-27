@@ -1,6 +1,5 @@
 using HarmonyLib;
 using JumpKing.Controller;
-using Microsoft.Xna.Framework.Input;
 
 namespace HidePauseWindow
 {
@@ -130,20 +129,23 @@ namespace HidePauseWindow
         }
 
         /// <summary>
-        /// 接続されている全デバイス(キーボード+各コントローラー)のいずれかで、
-        /// 何かボタンが押されているかどうか。非表示中の「任意のキーで再表示」用の判定。
-        /// <see cref="IsToggleKeyPressed"/>と違い、特定の1台(直近入力があったデバイス)だけでなく
-        /// 全デバイスを見る(再表示はトグルキーを設定していないデバイスからでも行えてよいため)。
+        /// 非表示中の「任意のキーで再表示」用の判定。物理キーボードの全キーではなく、
+        /// ゲーム本体が認識する操作(上下左右・ジャンプ・確認・キャンセル・pause・boots・snake・restart、
+        /// 全接続デバイス分を<c>ControllerManager.GetPadState()</c>で合算したもの)と、設定したトグルキー
+        /// だけを見る。F12(Steamスクリーンショット)やPrintScreen(Windows)のような、ゲームが使っていない
+        /// 物理キーはここに含まれないため、スクリーンショットを撮る操作自体で再表示されてしまう問題を避けられる
+        /// (実機からの要望で、素のキーボード全キー判定から変更した)。
         /// </summary>
         private static bool IsAnyInputPressed()
         {
-            if (Keyboard.GetState().GetPressedKeys().Length > 0)
+            if (IsToggleKeyPressed())
             {
                 return true;
             }
-            foreach (PadInstance pad in ControllerManager.instance.GetConnectedPads())
+            bool[] state = ControllerManager.instance.GetPadState().ToArray();
+            for (int i = 0; i < state.Length; i++)
             {
-                if (pad.GetPad().GetPressedButtons().Length > 0)
+                if (state[i])
                 {
                     return true;
                 }

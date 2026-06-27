@@ -54,6 +54,34 @@
 - 表示→非表示へ切り替わった時(トグルキーの新規押下を検出した時)は`s_armedToShow`を`false`にリセットする（次に非表示になった時も同じ手順を踏む）
 
 これにより、トグルキーを押した時の物理的な押下継続が「次の押下」と誤認されることがなくなった。挙動としては「トグルキーで非表示にした後、一度キーを離してから何か押せば再表示される」という形になる（押しっぱなしのままでは再表示されない）。
+
+## 仕様変更: 「任意のキー」の判定範囲をゲーム本体が認識する操作に限定（スクリーンショット対応）
+
+ユーザーから、「非表示中にスクリーンショットを撮りたいが、スクリーンショットのショートカット（Steamの`F12`等）を押すと、それ自体が『何か押された』と判定されて表示状態に戻ってしまい撮影できない」という報告があった。
+
+**原因**: それまでの`IsAnyInputPressed()`は`Keyboard.GetState().GetPressedKeys()`（キーボードの物理キーを無差別に全部見る）と、接続中の全`PadInstance`の`GetPressedButtons()`を見ていた。これらはOS/Steamオーバーレイが横取りするスクリーンショット用のキー（`F12`・`PrintScreen`等）が物理的に押されている間も「押されている」と認識してしまい、ゲーム側がそのキーを一切使っていなくても再表示のトリガーになってしまっていた。
+
+**修正**: `IsAnyInputPressed()`を、素のキーボード全キー走査から、**ゲーム本体が実際に認識する操作だけ**を見る方式に変更した。
+
+```csharp
+private static bool IsAnyInputPressed()
+{
+    if (IsToggleKeyPressed())
+    {
+        return true;
+    }
+    bool[] state = ControllerManager.instance.GetPadState().ToArray();
+    for (int i = 0; i < state.Length; i++)
+    {
+        if (state[i]) { return true; }
+    }
+    return false;
+}
+```
+
+`JumpKing.Controller.ControllerManager.GetPadState()`は、接続中の全デバイス(キーボード+各コントローラー)を合算した`PadState`（`public struct`、`up`/`down`/`left`/`right`/`jump`/`confirm`/`cancel`/`pause`/`boots`/`snake`/`restart`の11個の`bool`フィールドを持つ）を返す。`PadState.ToArray()`（`public`）でこれを`bool[]`に変換し、1つでも`true`があれば「ゲームにとって意味のある操作が行われた」と判定する。これに、このmod自身が設定しているトグルキー(`IsToggleKeyPressed()`)も合わせて見ることで、トグルキー自身を押しても引き続き再表示されるようにしている。
+
+この変更により、`F12`/`PrintScreen`のようにゲーム本体のどの操作にも割り当てられていない物理キーは判定対象から外れ、スクリーンショット操作だけでは非表示状態が解除されなくなった。一方で、矢印キー・Space/Enter・Backspace・Escape等、ゲーム本体の何らかの操作に紐づくキーは引き続き「任意のキー」として機能する（実用上、誤って思い出せないトグルキーの代わりに表示を戻す手段としては十分な範囲）。
    - 表示中→非表示への遷移（トグルキーの新規押下判定）と、非表示中→表示への遷移（任意の入力判定）を`if`/`else if`で排他的に処理しているため、同一フレーム内で両方が同時に評価されて二重トグルすることはない。
 
 ## 【重要・厳守】実装時の制約（他modから引き継ぎ）
