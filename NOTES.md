@@ -24,6 +24,22 @@
 
 **既知の限度（軽微、対応不要と判断）**: トグルキーをゲーム本体の「pause」キー（デフォルトEsc）と同じボタンに登録した場合、非表示→再表示の際の押下が`ConsumePadPresses()`で握りつぶされず素通りし、再表示と同時にポーズ自体も解除される。トグル専用に別のキーを選べば発生しない、利用者が意図的に重複させた場合のみの軽微な仕様上の癖。
 
+## 実機テストでの追加修正（3点）
+
+実機での再テストで3つの修正依頼があり、いずれも対応済み。
+
+1. **ラベル変更**: 「Hide Window Key」を、参考にした`Phoenixx19.SaveStates`の表記に合わせて「Bind Keys」に変更（`HideWindowKeyMenu.BuildLabel`）。
+
+2. **不具合: キー登録時、登録に使った押下自体が即座にトグルとして誤検出される**
+   - 例: トグルキーを`T`に設定すると、`T`を押して登録した瞬間、その同じ押下が「トグルキーが押された」と判定され、登録直後にウィンドウが非表示になってしまっていた。
+   - 原因: `CaptureToggleKeyNode`が新しいバインドを保存した時点では、そのキーはまだ物理的に押されたままの状態。次のフレームで`PauseManagerPatches.IsToggleKeyPressed()`がそれを「押されている」と検出するが、エッジ検出用の`s_lastPressed`はまだ`false`のままなので「新規の押下」と判定され、即座にトグルが発生していた。
+   - 修正: `PauseManagerPatches`に`SuppressCurrentToggleEdge()`を追加し、`CaptureToggleKeyNode`が保存した直後に呼び出すことで`s_lastPressed`を強制的に`true`にする。これにより、登録に使ったキーが実際に一度離されるまでは「新規の押下」として扱われなくなり、登録直後の誤発火が起きなくなった。
+
+3. **要望: 設定キーに関わらずESCキーは「非表示→表示」のみを行う（逆方向は不要）**
+   - `PauseUpdatePrefix`に、`wasHidden`(このフレーム開始時に非表示だったか)を見て、非表示中に物理的なESCキー(`Microsoft.Xna.Framework.Input.Keyboard.GetState().IsKeyDown(Keys.Escape)`、ゲーム本体の「pause」バインド設定とは無関係に常にこの物理キーを直接見る)が押されていれば`s_hidden`を強制的に`false`にする処理を追加した。
+   - 表示中にESCを押しても何もしない（要望通り、逆方向は実装していない）。
+   - 同フレームでこの処理によって非表示→表示に変わった場合も、`ConsumePadPresses()`は引き続き呼ぶ（`wasHidden || s_hidden`で判定）。これにより、ウィンドウを再表示させたその同じESC押下が、`MenuSelector.MyRun`側の「pause」入力として読まれてポーズ自体まで解除されてしまうことを防いでいる（要望は「表示が戻る」だけで、ポーズ解除は意図していないため）。
+
 ## 【重要・厳守】実装時の制約（他modから引き継ぎ）
 
 このmodもSteam Workshop上での公開を想定する。**Jump King本体のプログラムやファイル（`C:\Program Files (x86)\Steam\steamapps\common\Jump King\`配下など）は一切変更・上書き・削除してはならない。** 実装は必ず`hide_pause_window/`フォルダの下だけで行うこと（ビルド参照のための読み取り専用パス指定を除く）。本体への変更が必要に見える場合は、Harmonyによる実行時パッチなど、本体ファイルを書き換えない手段で実現する（[keep_babe_skin](../keep_babe_skin/NOTES.md)・[confirm_count_control](../confirm_count_control/MenuFactoryPatches.cs)・[area_info_display_on_pause](../area_info_display_on_pause/NOTES.md)と同じ方針）。

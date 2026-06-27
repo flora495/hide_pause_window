@@ -42,6 +42,9 @@ namespace HidePauseWindow
                 ModEntry.Settings.PadToggleKeys = new[] { code };
             }
             ModEntry.SaveSettings();
+            // 今押されているこのボタンが、登録直後にそのままトグル発火の「新規押下」として
+            // 誤検出されないようにする(PauseManagerPatches.NOTES.md「不具合修正」参照)。
+            PauseManagerPatches.SuppressCurrentToggleEdge();
 
             if (DisplayButton != null)
             {

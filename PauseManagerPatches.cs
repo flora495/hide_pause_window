@@ -1,5 +1,6 @@
 using HarmonyLib;
 using JumpKing.Controller;
+using Microsoft.Xna.Framework.Input;
 
 namespace HidePauseWindow
 {
@@ -66,6 +67,16 @@ namespace HidePauseWindow
                 return;
             }
 
+            bool wasHidden = s_hidden;
+
+            // 設定キーに関わらず、ESCキーは「非表示→表示」だけを強制する(表示中に押しても何もしない)。
+            // ConsumePadPressesは後段でwasHiddenを見て今フレームも握りつぶすため、このESC押下が
+            // そのままMenuSelector側の「pause」入力として読まれてポーズ自体が解除されることはない。
+            if (wasHidden && Keyboard.GetState().IsKeyDown(Keys.Escape))
+            {
+                s_hidden = false;
+            }
+
             bool pressed = IsToggleKeyPressed();
             if (pressed && !s_lastPressed)
             {
@@ -73,10 +84,21 @@ namespace HidePauseWindow
             }
             s_lastPressed = pressed;
 
-            if (s_hidden)
+            if (wasHidden || s_hidden)
             {
                 ControllerManager.instance.MenuController.ConsumePadPresses();
             }
+        }
+
+        /// <summary>
+        /// キー登録の直後、登録に使ったボタン押下そのものがまだ物理的に押され続けている間は
+        /// トグル発生の「新規の押下」として扱わないようにする。これを呼ばずに登録直後の状態で
+        /// <see cref="IsToggleKeyPressed"/>がtrueを返すと、登録した瞬間にウィンドウが
+        /// 非表示になってしまう。
+        /// </summary>
+        public static void SuppressCurrentToggleEdge()
+        {
+            s_lastPressed = true;
         }
 
         /// <summary>

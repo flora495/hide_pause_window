@@ -59,7 +59,7 @@ namespace HidePauseWindow
 
         public static string BuildLabel()
         {
-            return "Hide Window Key (KB: " + Describe(ModEntry.Settings.KeyboardToggleKeys, isKeyboard: true)
+            return "Bind Keys (KB: " + Describe(ModEntry.Settings.KeyboardToggleKeys, isKeyboard: true)
                 + " / Pad: " + Describe(ModEntry.Settings.PadToggleKeys, isKeyboard: false) + ")";
         }
 
