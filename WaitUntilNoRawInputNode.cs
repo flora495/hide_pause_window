@@ -4,7 +4,7 @@ using JumpKing.Controller;
 namespace HidePauseWindow
 {
     /// <summary>
-    /// キー登録フローの開始直前に挟むノード。「Hide Window Key」項目をConfirmで選んだ際の
+    /// キー登録フローの開始直前に挟むノード。「Bind Keys」項目をConfirmで選んだ際の
     /// そのキー押下がまだ物理的に押されたままの間は待機し、何も押されていない状態になってから
     /// 次のキャプチャに進む。これが無いと、選択に使ったキー自体が新しいバインドとして
     /// 即座に登録されてしまう。ゲーム本体のバニラ操作設定画面の<c>WaitUntilNoInput</c>と同じ役割だが、

@@ -2,7 +2,7 @@
 
 逆コンパイル（ilspycmd、実機インストール済みの`JumpKing.exe`、および参考modとして指定されたWorkshopアイテム`3161216998`(`Phoenixx19.SaveStates`)の`JumpKingSaveStates.dll`）による調査の経緯と、確定した仕様をまとめたもの。
 
-**実装状況**: 実装・ビルド確認済み（リポジトリルートの各`.cs`ファイル）。実機での動作確認はまだ行っていない。
+**実装状況**: 実装・ビルド確認済み（リポジトリルートの各`.cs`ファイル）。実機テストもほぼ完了し、テスト中に見つかった不具合（後述）はいずれも修正済み。
 
 **実装後の補足**:
 - 「キー登録UI」は、調査時点で想定していたゲーム本体内蔵の`BindCatchSave`/`SetBBKeyNode`/`TimerAction`による「変更を保持しますか？5秒で元に戻ります」の確認フローは実装せず、押された瞬間に即時保存する方式に簡略化した。movement/jump等のゲーム進行に必須なキーと違い、このmodのトグルキーを誤って思わぬ値に設定してしまっても、いつでもこの同じ画面を開いて上書きできるだけで実害が無いため
@@ -40,6 +40,7 @@
    - 表示中にESCを押しても何もしない（要望通り、逆方向は実装していない）。
    - **その後、「ESCに限らず非表示中は任意のキー/ボタンで表示に戻るようにしてほしい」と仕様変更があったため、ESC固有のチェックを`IsAnyInputPressed()`（キーボードの`GetPressedKeys()`、および`ControllerManager.GetConnectedPads()`で取得できる接続中の全パッドの`GetPressedButtons()`のいずれかが1つでも押されていればtrue）に置き換えた。** ESCだけの特別扱いは無くなり、トグルキー自身を含むあらゆる入力で非表示→表示に戻る。
    - `ConsumePadPresses()`は`wasHidden || s_hidden`の判定のまま変更していない。これにより、ウィンドウを再表示させたその押下が、`MenuSelector.MyRun`側の上下/確認/キャンセル/pause入力として読まれて意図せずメニューが動いたりポーズ自体が解除されたりすることを防いでいる（要望は「表示が戻る」だけで、それ以外の副作用は意図していないため）。
+   - 表示中→非表示への遷移（トグルキーの新規押下判定）と、非表示中→表示への遷移（任意の入力判定）を`if`/`else if`で排他的に処理しているため、同一フレーム内で両方が同時に評価されて二重トグルすることはない。
 
 ## 不具合修正: トグルキーを押すと一瞬非表示になるがすぐ再表示されてしまう（実機テストで発覚・修正済み）
 
@@ -82,7 +83,10 @@ private static bool IsAnyInputPressed()
 `JumpKing.Controller.ControllerManager.GetPadState()`は、接続中の全デバイス(キーボード+各コントローラー)を合算した`PadState`（`public struct`、`up`/`down`/`left`/`right`/`jump`/`confirm`/`cancel`/`pause`/`boots`/`snake`/`restart`の11個の`bool`フィールドを持つ）を返す。`PadState.ToArray()`（`public`）でこれを`bool[]`に変換し、1つでも`true`があれば「ゲームにとって意味のある操作が行われた」と判定する。これに、このmod自身が設定しているトグルキー(`IsToggleKeyPressed()`)も合わせて見ることで、トグルキー自身を押しても引き続き再表示されるようにしている。
 
 この変更により、`F12`/`PrintScreen`のようにゲーム本体のどの操作にも割り当てられていない物理キーは判定対象から外れ、スクリーンショット操作だけでは非表示状態が解除されなくなった。一方で、矢印キー・Space/Enter・Backspace・Escape等、ゲーム本体の何らかの操作に紐づくキーは引き続き「任意のキー」として機能する（実用上、誤って思い出せないトグルキーの代わりに表示を戻す手段としては十分な範囲）。
-   - 表示中→非表示への遷移（トグルキーの新規押下判定）と、非表示中→表示への遷移（任意の入力判定）を`if`/`else if`で排他的に処理しているため、同一フレーム内で両方が同時に評価されて二重トグルすることはない。
+
+## 実機テストの完了状況
+
+[TEST_CASES.md](TEST_CASES.md)の全11セクションのうち、10セクションをチェック済み。残る1項目（セクション1「`crashlog.log`に新規のクラッシュが追加されていないか」）は、テスト中に`MoreSaves`由来の無関係な例外（セーブフォルダへのアクセス拒否）が追記されていたため未チェックのまま残している（`F.HidePauseWindow`/`PauseManager`への言及は無く、本mod自体が原因のクラッシュではないと判断している）。
 
 ## 【重要・厳守】実装時の制約（他modから引き継ぎ）
 
@@ -213,14 +217,16 @@ public void ConsumePadPresses()
 | ボタン設定UI | `Phoenixx19.SaveStates`（Workshop ID `3161216998`）の Bind Keys 画面と同様、**ボタンを押して登録する方式**。ゲーム本体・SaveStatesが使っている`BindButtonFrame`等の部品を流用する |
 | 対応デバイス | **キーボード・コントローラーの両対応**。`ControllerManager.instance.GetMain().GetPad().GetPressedButtons()`がデバイスを問わず同じ形式で値を返すため、追加の分岐は不要 |
 
-## 実装方針（案、未実装）
+## 実装方針（実装済み。実際のファイル構成は[README.md](README.md)の「プロジェクト構成」を参照）
 
-- `Settings.cs` — トグル用のキー/ボタン番号配列（`int[]`）をXML保存。既存mod群と同じ`Settings.Load`/`Save`パターン
-- `HideToggleState.cs` — 押下のエッジ検出（前回フレームとの比較）と、現在の非表示フラグを保持
-- `PauseManagerPatches.cs`
-  - `PauseManager.PauseUpdate`へのHarmonyパッチ（prefixまたはpostfix）→ 毎フレーム独自ボタンのエッジ検出、非表示フラグの反転。非表示中は`ControllerManager.instance.MenuController.ConsumePadPresses()`
+調査直後に立てた当初案では`HideToggleState.cs`/`MenuFactoryPatches.cs`という名前を想定していたが、実装時に以下の構成に整理した。
+
+- `Settings.cs` — トグル用のキー/ボタン番号配列（`int[]`、キーボード/コントローラー別）をXML保存。既存mod群と同じ`Settings.Load`/`Save`パターン
+- `PauseManagerPatches.cs` — 当初案の`HideToggleState.cs`の役割（エッジ検出・非表示フラグ）も統合
+  - `PauseManager.PauseUpdate`へのHarmonyパッチ（prefix）→ 毎フレーム独自ボタンのエッジ検出、非表示フラグの反転。非表示中は`ControllerManager.instance.MenuController.ConsumePadPresses()`
   - `PauseManager.Draw`へのprefix → 非表示フラグが立っていれば`return false`
-- `MenuFactoryPatches.cs` — `[PauseMenuItemSetting]`に「ウィンドウ非表示ボタンの設定」項目を追加し、`Phoenixx19.SaveStates`の`MakeBindController`/`MakeBindButtonMenu`パターンを1ボタン分流用して「ボタンを押してください」UIを構築
+  - `PauseManager.SetPause`へのpostfix → ポーズ解除時に非表示状態をリセット
+- `HideWindowKeyMenu.cs`/`CaptureToggleKeyNode.cs`/`WaitUntilNoRawInputNode.cs` — 当初案の`MenuFactoryPatches.cs`の役割。`[PauseMenuItemSetting]`/`[MainMenuItemSetting]`に「Bind Keys」項目を追加し、`Phoenixx19.SaveStates`の`MakeBindController`/`MakeBindButtonMenu`パターンを1ボタン分流用して「ボタンを押してください」UIを構築
 
 ## Harmonyの同梱方針
 

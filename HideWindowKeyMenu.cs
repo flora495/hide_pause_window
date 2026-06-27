@@ -10,7 +10,7 @@ using Microsoft.Xna.Framework.Input;
 namespace HidePauseWindow
 {
     /// <summary>
-    /// メイン/ポーズ両メニューの設定一覧に表示する「Hide Window Key」項目を組み立てる。
+    /// メイン/ポーズ両メニューの設定一覧に表示する「Bind Keys」項目を組み立てる。
     /// ゲーム本体の操作設定画面(<c>MenuFactory.CreateBindControls</c>)、および参考にしたWorkshop mod
     /// (<c>Phoenixx19.SaveStates</c>、Bind Keys画面)と同じ<see cref="BindButtonFrame"/>を使った
     /// 「ボタンを押して登録する」UIを、トグル用の1ボタンだけに絞って簡略化したもの。
