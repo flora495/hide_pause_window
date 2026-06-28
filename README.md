@@ -9,17 +9,15 @@ Jump Kingのmodです。ポーズ中に表示されるウィンドウを非表�
 1. **Enabled** - mod全体の有効/無効
 2. **Bind Keys** - 選択して`Confirm`すると「ボタンを押して登録する」画面が開く。キーボードのキーを押すとキーボード用、コントローラーのボタンを押すとコントローラー用のバインドとして、それぞれ別に登録される。
 
-ゲーム中に該当キー/ボタンを押すと、ポーズが解除されることなく、ウィンドウが非表示になります。非表示の間は上下キー・確認・キャンセルなどのメニュー操作は無効化されており、**ゲーム本体が認識する操作（上下左右・ジャンプ・確認・キャンセル・pause・boots・snake・restartのいずれか、またはこのmodで設定したキー/ボタン自身）を押すと表示が戻り**、通常の操作に戻ります。
+ポーズ中に設定したキーを押すと、ウィンドウが非表示になります。ゲーム内で使用しているキーのいずれかを押すと、再表示されます。
 
-設定はmod自身のdllと同じフォルダに`F.HidePauseWindow.Settings.xml`として保存されます。デフォルトはキーボード・コントローラーともに未設定（Unbound）です。
+設定はmod自身のdllと同じフォルダに`F.HidePauseWindow.Settings.xml`として保存されます。デフォルトはキーボード/コントローラーともに未設定です。
 
-## 技術的な実現方針（概要）
+## 実装概要
 
 - `JumpKing.PauseMenu.PauseManager.Draw()`をHarmonyでパッチし、非表示フラグが立っている間は描画自体をスキップする（ゲーム側に暗転オーバーレイ等は存在しないため、これだけで背景全体がそのまま見える見た目になる）
 - `JumpKing.PauseMenu.PauseManager.PauseUpdate()`をHarmonyでパッチし、毎フレーム独自のボタン押下を検出（ゲーム本体のボタン体系には空きスロットが無いため、mod独自にキー/ボタンを保持・判定する）。非表示中は`ControllerManager.instance.MenuController.ConsumePadPresses()`でメニュー入力を握りつぶす
 - キー登録UIは、ゲーム本体が内蔵する`BindButtonFrame`等のコントロール割り当て部品を、[Save States](https://steamcommunity.com/sharedfiles/filedetails/?id=3161216998) modと同じ手法で流用する
-
-詳しい調査経緯・各クラスの実装根拠は[NOTES.md](NOTES.md)を参照してください。
 
 ## 必須環境
 
