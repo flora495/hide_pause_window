@@ -7,7 +7,8 @@
 **実装後の補足**:
 - 「キー登録UI」は、調査時点で想定していたゲーム本体内蔵の`BindCatchSave`/`SetBBKeyNode`/`TimerAction`による「変更を保持しますか？5秒で元に戻ります」の確認フローは実装せず、押された瞬間に即時保存する方式に簡略化した。movement/jump等のゲーム進行に必須なキーと違い、このmodのトグルキーを誤って思わぬ値に設定してしまっても、いつでもこの同じ画面を開いて上書きできるだけで実害が無いため
 - キーボードとコントローラーは判定がデバイス依存（ボタン番号の意味が異なる）のため、`Settings.KeyboardToggleKeys`/`Settings.PadToggleKeys`の2つに分けて保持する。デバイスの判別は`IPad.GetSaveIdentifier()`（キーボードは`"pc_keyboard_jump_king"`固定）で行い、`ControllerManager.GetMain()`（直近で入力があったデバイス）を介して両方を同じロジックで扱う
-- 押下検出は`ControllerManager.instance.GetMain().GetPad().GetPressedButtons()`を直接読む方式（`Phoenixx19.SaveStates`の`CustomBindButton`/`CustomPadInstance`と同じ考え方）。ゲーム本体の`SelectDevice`/`BBKEY_PAD`によるデバイス選択UIは使っていない（トグル用の1ボタンだけなので不要と判断し、簡略化した）
+- キー登録時の押下検出は`ControllerManager.instance.GetMain().GetPad().GetPressedButtons()`を直接読む方式（`Phoenixx19.SaveStates`の`CustomBindButton`と同じ考え方）。ゲーム本体の`SelectDevice`/`BBKEY_PAD`によるデバイス選択UIは使っていない（トグル用の1ボタンだけなので不要と判断し、簡略化した）
+- ポーズ中のトグルキー判定(`IsToggleKeyPressed`)は、当初は登録時と同じく`GetMain()`の1台だけを見ていたが（`Phoenixx19.SaveStates`の`CustomPadInstance`と同じ）、後述の不具合により接続中の全デバイスを見る方式に変更した
 
 ## 不具合修正: 「Hide Window Key」選択時に画面が固まる（実機テストで発覚・修正済み）
 
@@ -83,6 +84,21 @@ private static bool IsAnyInputPressed()
 `JumpKing.Controller.ControllerManager.GetPadState()`は、接続中の全デバイス(キーボード+各コントローラー)を合算した`PadState`（`public struct`、`up`/`down`/`left`/`right`/`jump`/`confirm`/`cancel`/`pause`/`boots`/`snake`/`restart`の11個の`bool`フィールドを持つ）を返す。`PadState.ToArray()`（`public`）でこれを`bool[]`に変換し、1つでも`true`があれば「ゲームにとって意味のある操作が行われた」と判定する。これに、このmod自身が設定しているトグルキー(`IsToggleKeyPressed()`)も合わせて見ることで、トグルキー自身を押しても引き続き再表示されるようにしている。
 
 この変更により、`F12`/`PrintScreen`のようにゲーム本体のどの操作にも割り当てられていない物理キーは判定対象から外れ、スクリーンショット操作だけでは非表示状態が解除されなくなった。一方で、矢印キー・Space/Enter・Backspace・Escape等、ゲーム本体の何らかの操作に紐づくキーは引き続き「任意のキー」として機能する（実用上、誤って思い出せないトグルキーの代わりに表示を戻す手段としては十分な範囲）。
+
+## 不具合修正: 一部のコントローラーで、ポーズ直後にトグルキーが効かない（実機テストで発覚・修正済み）
+
+サードパーティ製のXbox 360互換USBパッド（`VID_045E&PID_028E`）を使っていると、ポーズを開いた直後にトグルボタンを押してもウィンドウが消えず、十字キーの上下などを押した後でないと効かない、という不具合が報告された。キーボードでは発生しない。
+
+**原因**:
+- ゲーム本体の`ControllerManager.Update()`は、ゲーム操作（up/down/jump/pause等の11種）の新規押下があったデバイスだけを`_current_main`（`GetMain()`の戻り値）にする。どの操作にも割り当てられていないトグルキーを押しても、メインは切り替わらない
+- このパッドは、XInput（`XboxPad`、ゲーム内表示「xbox 360 controller 1」）とは別に、DirectInput（`LegacyPad`）としても認識されていた。ゲームはDirectInputデバイスの製品名に`"XINPUT"`（大文字小文字を区別）・`"360 controller"`・`"XBOX"`のいずれかが含まれる場合に重複とみなして除外する（`SlimJoystickManager.GetDevices()`）。しかしこのパッドのDirectInput名（レジストリ`HKCU\...\Joystick\OEM\VID_045E&PID_028E`の`OEMName`）は`Controller (XInput STANDARD GAMEPAD)`で、大文字小文字の違いにより除外をすり抜けていた
+- 1回のボタン操作でXInput側とDirectInput側の両方に押下が届くため、タイミングや割り当て次第でメインがDirectInput側になる。その状態で`IsToggleKeyPressed()`が`GetMain()`だけを見ると、DirectInput側のボタン番号と、XInput形式で登録されたトグルキー（Xボタン=`16384`）を比べることになり、一致しない。上下を押してメインがXInput側に戻ると効くようになっていた
+
+**修正**: `IsToggleKeyPressed()`を、`GetMain()`の1台ではなく`ControllerManager.GetConnectedPads()`の全デバイスを走査し、キーボードには`KeyboardToggleKeys`、それ以外には`PadToggleKeys`を照合する方式に変更した。ゲーム本体もプレイ操作やメニュー操作（ポーズキー含む）の判定は全デバイス合算（`GetPadState()`/`GetPressedPadState()`）で行っており、`GetMain()`はボタン名表示やキー登録など1台に絞る必要がある場面でだけ使っているため、それに揃えた形。デバイスをまたぐ操作（コントローラーでポーズを開いてキーボードのトグルキーを押す等）でも即座に効くようになった。
+
+キー登録側（`CaptureToggleKeyNode`/`WaitUntilNoRawInputNode`）は`GetMain()`のまま変更していない。登録時にメインがDirectInput側でその番号が保存されても、判定側が全デバイスを見るため検出できる。登録側まで全デバイス走査にすると、1回の押下でXInput側とDirectInput側の両方から番号が来て、どちらを保存するか決める必要が生じるため。
+
+**既知の限度（軽微、対応不要と判断）**: キーボード以外のデバイスは`PadToggleKeys`を共有しているため、XInputとDirectInputでたまたま同じ値になるボタン（XInputの十字キー・Start・Backの`1, 2, 4, 8, 16, 32`と、DirectInputのボタン1・2・4・8・16・32）をトグルキーにした場合は、両方のデバイスで反応する。
 
 ## 実機テストの完了状況
 

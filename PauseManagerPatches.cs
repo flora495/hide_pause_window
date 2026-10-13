@@ -153,22 +153,38 @@ namespace HidePauseWindow
             return false;
         }
 
+        /// <summary>
+        /// 接続中の全デバイスのいずれかでトグルキーが押されていればtrue。
+        /// <c>ControllerManager.GetMain()</c>(直近でゲーム操作の新規押下があった1台)だけを見ると、
+        /// 1台の物理コントローラーがXInput(<c>XboxPad</c>)とDirectInput(<c>LegacyPad</c>)の2台として
+        /// 認識される環境で、メインがトグルキーを登録したのと別の側になっている間はトグルキーが
+        /// 検出されなくなる(実機で発覚した不具合、NOTES.md参照)。ゲーム本体もプレイ操作やポーズキーの
+        /// 判定は全デバイス合算で行っているため、それに揃える。
+        /// </summary>
         private static bool IsToggleKeyPressed()
         {
-            PadInstance main = ControllerManager.instance.GetMain();
-            if (!main.IsValid || !main.IsConnected)
+            foreach (PadInstance pad in ControllerManager.instance.GetConnectedPads())
             {
-                return false;
+                if (!pad.IsValid)
+                {
+                    continue;
+                }
+                bool isKeyboard = pad.GetPad().GetSaveIdentifier() == KeyboardSaveIdentifier;
+                int[] bind = isKeyboard ? ModEntry.Settings.KeyboardToggleKeys : ModEntry.Settings.PadToggleKeys;
+                if (ContainsAny(pad.GetPad().GetPressedButtons(), bind))
+                {
+                    return true;
+                }
             }
+            return false;
+        }
 
-            bool isKeyboard = main.GetPad().GetSaveIdentifier() == KeyboardSaveIdentifier;
-            int[] bind = isKeyboard ? ModEntry.Settings.KeyboardToggleKeys : ModEntry.Settings.PadToggleKeys;
+        private static bool ContainsAny(int[] pressed, int[] bind)
+        {
             if (bind == null || bind.Length == 0)
             {
                 return false;
             }
-
-            int[] pressed = main.GetPad().GetPressedButtons();
             for (int i = 0; i < pressed.Length; i++)
             {
                 for (int j = 0; j < bind.Length; j++)
